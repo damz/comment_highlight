@@ -1,0 +1,30 @@
+=== modified file 'styles/styles.css'
+--- styles/styles.css	2011-01-14 03:19:05 +0000
++++ styles/styles.css	2011-01-21 14:52:16 +0000
+@@ -1139,6 +1139,11 @@
+   margin-left: 0;
+ }
+ 
++.comment-highlighted {
++  background-color: #E6FCB6;
++  padding: 1px 6px 2px;
++}
++
+ /**
+  * Definition lists
+  */
+
+=== modified file 'template.php'
+--- template.php	2011-01-14 03:19:05 +0000
++++ template.php	2011-01-21 15:25:36 +0000
+@@ -200,6 +200,9 @@
+   if (!empty($vars['picture'])) {
+     $classes[] = 'comment-with-picture';
+   }
++  if (!empty($vars['comment']->highlighted)) {
++    $classes[] = 'comment-highlighted';
++  }
+ 
+   $vars['classes'] = implode(' ', $classes);
+ }
+

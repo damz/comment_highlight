@@ -1,0 +1,108 @@
+<?php
+// $Id$
+
+/**
+ * Implements hook_perm().
+ */
+function comment_highlight_perm() {
+  return array('highlight comments');
+}
+
+/**
+ * Load the list of comments highlighted in the issue.
+ *
+ * @param $nid
+ *   The nid of the issue.
+ * @return
+ *   A list of highlighted comments, keyed by cid.
+ */
+function comment_highlight_comments($nid) {
+  static $cache;
+
+  if (!isset($cache[$nid])) {
+    $cache[$nid] = array();
+    $res = db_query('SELECT cid FROM {comment_highlight} WHERE nid = %d', $nid);
+    while ($highlight = db_fetch_array($res)) {
+      $cache[$nid][$highlight['cid']] = $highlight['cid'];
+    }
+  }
+
+  return $cache[$nid];
+}
+
+/**
+ * Implements hook_form_comment_form_alter().
+ */
+function comment_highlight_form_comment_form_alter(&$form, &$form_state) {
+  $node = node_load($form['nid']['#value']);
+
+  if (variable_get('comment_highlight_type_'. $node->type, FALSE) && user_access('highlight comments')) {
+    // Load the current state of this comment.
+    if (!empty($form['cid']['#value'])) {
+      $highlighted_comments = comment_highlight_comments($form['nid']['#value']);
+      $highlighted = isset($highlighted_comments[$form['cid']['#value']]);
+    }
+
+    $form['highlighted'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Highlight this comment'),
+      '#default_value' => !empty($highlighted),
+    );
+    $form['#submit'][] = 'comment_highlight_comment_form_submit';
+  }
+}
+
+/**
+ * Implements hook_comment().
+ */
+function comment_highlight_comment(&$a1, $op) {
+  if ($op == 'view') {
+    $comment = &$a1;
+    // During preview, the highlight value will already be loaded in the
+    // comment.
+    if (!isset($comment->highlighted)) {
+      $highlighted_comments = comment_highlight_comments($comment->nid);
+      $comment->highlighted = isset($highlighted_comments[$comment->cid]);
+    }
+  }
+  else if ($op == 'insert' || $op == 'update') {
+    $comment = (object) $a1;
+
+    if (isset($comment->highlighted)) {
+      if ($comment->highlighted) {
+        // Insert the flag. Ignore the duplicate error if the flag is already
+        // there.
+        @db_query('INSERT INTO {comment_highlight} (nid, cid) VALUES (%d, %d)', $comment->nid, $comment->cid);
+      }
+      else {
+        db_query('DELETE FROM {comment_highlight} WHERE cid = %d', $comment->cid);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_project_issue_metadata().
+ */
+function comment_highlight_project_issue_metadata($view, $node, &$current_data) {
+  if ($view == 'current') {
+    $highlighted_comments = comment_highlight_comments($node->nid);
+
+    if ($highlighted_comments) {
+      // Load the sequencial comment number from the project issue module
+      // and filter out the unpublished comments.
+      $res = db_query("SELECT pic.cid, pic.comment_number FROM {project_issue_comments} pic INNER JOIN {comments} c ON pic.cid = c.cid WHERE pic.cid IN (" . db_placeholders($highlighted_comments, 'int') . ") AND c.status = %d ORDER BY pic.comment_number", array_merge($highlighted_comments, array(COMMENT_PUBLISHED)));
+      $values = array();
+      while ($comment = db_fetch_array($res)) {
+        $values[] = l('#' . $comment['comment_number'], 'node/' . $node->nid, array('fragment' => 'comment-' . $comment['cid']));
+      }
+
+      if ($values) {
+        $current_data['highlight'] = array(
+          'label' => t('Highlighted'),
+          'current' => implode(', ', $values),
+        );
+      }
+    }
+  }
+}

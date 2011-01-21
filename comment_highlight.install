@@ -1,0 +1,46 @@
+<?php
+// $Id$
+
+/**
+ * Implementation of hook_install().
+ */
+function comment_highlight_install() {
+  drupal_install_schema('comment_highlight');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function comment_highlight_uninstall() {
+  drupal_uninstall_schema('comment_highlight');
+
+  // Remove the variables.
+  $res = db_query("SELECT name FROM {variable} WHERE name LIKE 'comment_highlight_type_%'");
+  while ($variable = db_fetch_array($res)) {
+    variable_del($variable['name']);
+  }
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function comment_highlight_schema() {
+  $schema['comment_highlight'] = array(
+    'description' => 'Table containing issue comments highlighted.',
+    'fields' => array(
+      'nid' => array(
+        'description' => 'References {project_issues}.nid, the issue to which this comment was added.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+      'cid' => array(
+        'description' => 'Primary Key: The {comments}.cid for this comment.',
+        'type' => 'int',
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('cid'),
+  );
+
+  return $schema;
+}
